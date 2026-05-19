@@ -1,0 +1,5 @@
+﻿BE.ipynb
+*.ipynb
+.env
+*.env
+__pycache__/
