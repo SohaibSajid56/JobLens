@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
 // ⚠️ UPDATE this every time you restart the Colab cell
-const API_BASE = " https://arbitrary-negotiate-monotone.ngrok-free.dev";
+const API_BASE = "https://arbitrary-negotiate-monotone.ngrok-free.dev";
 
 // ─── Fonts + Global styles ────────────────────────────────────────────────────
 const GlobalStyle = () => (

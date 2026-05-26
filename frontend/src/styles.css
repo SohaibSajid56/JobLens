@@ -9,6 +9,114 @@
     padding: 0;
 }
 
+.jobs-page {
+  padding: 28px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.jobs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.jobs-head h2 {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
+  color: var(--text-main);
+}
+
+.jobs-head p {
+  margin: 0;
+  color: var(--text-muted);
+  max-width: 680px;
+}
+
+.jobs-controls {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.jobs-summary {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.jobs-summary h3 {
+  margin: 0 0 12px;
+}
+
+.skills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skill-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.jobs-list {
+  display: grid;
+  gap: 14px;
+}
+
+.job-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.job-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.job-meta {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.job-desc {
+  color: var(--text-main);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.job-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.empty-jobs {
+  padding: 20px;
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  color: var(--text-muted);
+  background: #ffffff;
+}
+
 :root {
     --bg-main: #f8fafc;
     /* Slate 50 */

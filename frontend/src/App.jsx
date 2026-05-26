@@ -1,12 +1,19 @@
-// src/App.jsx
 import { useState, useRef, useEffect } from "react";
-import "./styles.css"; // 1. IMPORT THE NEW CSS FILE HERE
-import AuthScreen from "./AuthScreen"; // 2. IMPORT THE AUTH COMPONENT
+import "./styles.css";
+import AuthScreen from "./AuthScreen";
 import InterviewScreen from "./InterviewScreen";
+import JobsScreen from "./jobscreen";
+import LiveInterviewScreen from "./LiveInterviewScreen"; 
 
-const API_BASE = "https://unshaven-crafty-dedicate.ngrok-free.dev";
 
-// ─── Helpers ───
+const API_BASE = "https://arbitrary-negotiate-monotone.ngrok-free.dev";
+
+const HEADERS = (token) => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${token}`,
+  "ngrok-skip-browser-warning": "true",
+});
+
 const pdfToBase64 = (file) =>
   new Promise((res, rej) => {
     const r = new FileReader();
@@ -27,7 +34,6 @@ function fmtDate(iso) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-// ─── Main App ───
 export default function App() {
   const [auth, setAuth] = useState(() => {
     const t = localStorage.getItem("jat_token");
@@ -43,9 +49,10 @@ export default function App() {
   const [errMsg, setErrMsg] = useState("");
   const [sessionId, setSessionId] = useState(null);
   const [isInterviewMode, setIsInterviewMode] = useState(false);
-
+  const [isLiveInterviewMode, setIsLiveInterviewMode] = useState(false);
   const [history, setHistory] = useState([]);
   const [activeHist, setActiveHist] = useState(null);
+  const [isJobsMode, setIsJobsMode] = useState(false);
 
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -63,12 +70,22 @@ export default function App() {
 
   async function loadHistory() {
     try {
-      const res = await fetch(`${API_BASE}/api/history`, {
-        headers: { Authorization: `Bearer ${auth.token}`, "ngrok-skip-browser-warning": "true" },
+      const token = auth?.token || localStorage.getItem("jat_token");
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/internal/history`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to load history");
       setHistory(data.sessions || []);
-    } catch {}
+    } catch (error) {
+      console.error("Load history error:", error);
+      setHistory([]);
+    }
   }
 
   function handleCvFile(file) {
@@ -91,19 +108,14 @@ export default function App() {
         messages: updated.map(m => ({ role: m.role, content: m.content })),
         session_id: sessionId,
       };
-
       if (cvFile) {
         const b64 = await pdfToBase64(cvFile);
         payload.cv_pdf = { filename: cvFile.name, base64: b64 };
       }
 
-      const res = await fetch(`${API_BASE}/api/analyze_job`, {
+      const res = await fetch(`${API_BASE}/internal/analyze_job`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
+        headers: HEADERS(auth.token),
         body: JSON.stringify(payload),
       });
 
@@ -126,16 +138,25 @@ export default function App() {
   }
 
   function startNew() {
-    setMessages([]); setInput(""); setSessionId(null);
-    setCvFile(null); setErrMsg(""); setActiveHist(null);
+    setMessages([]);
+    setInput("");
+    setSessionId(null);
+    setCvFile(null);
+    setErrMsg("");
+    setActiveHist(null);
     setIsInterviewMode(false);
+    setIsJobsMode(false);
+    setIsLiveInterviewMode(false);
   }
 
   async function deleteSession(sid, e) {
     e.stopPropagation();
-    await fetch(`${API_BASE}/api/history/${sid}`, {
+    await fetch(`${API_BASE}/internal/history/${sid}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${auth.token}`, "ngrok-skip-browser-warning": "true" },
+      headers: {
+        Authorization: `Bearer ${auth.token}`,
+        "ngrok-skip-browser-warning": "true",
+      },
     });
     loadHistory();
     if (sessionId === sid) startNew();
@@ -144,7 +165,8 @@ export default function App() {
   function openHistory(session) {
     setActiveHist(session);
     setMessages([]); setInput(""); setSessionId(session.session_id);
-    setErrMsg(""); setIsInterviewMode(false);
+    setErrMsg(""); setIsInterviewMode(false); setIsJobsMode(false);
+    setIsLiveInterviewMode(false);
   }
 
   function logout() {
@@ -156,7 +178,6 @@ export default function App() {
 
   return (
     <div className="shell">
-      {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="sidebar-head">
           <div className="sidebar-logo">Job<em>Lens</em></div>
@@ -164,6 +185,10 @@ export default function App() {
         </div>
 
         <button className="new-chat-btn" onClick={startNew}>＋ New Analysis</button>
+
+        <button className="new-chat-btn" onClick={() => { setIsJobsMode(true); setIsInterviewMode(false); setActiveHist(null); }} style={{ marginTop: "8px" }}>
+          💼 Find Jobs From CV
+        </button>
 
         <div className="history-label">Recent Sessions</div>
         <div className="history-list">
@@ -188,9 +213,7 @@ export default function App() {
         </div>
       </aside>
 
-      {/* MAIN */}
       <main className="main">
-        {/* TOPBAR */}
         <div className="topbar">
           <div className="topbar-title">
             {activeHist ? `Session — ${fmtDate(activeHist.started)}` : "New Analysis"}
@@ -199,10 +222,18 @@ export default function App() {
                 🎙️ Start Mock Interview
               </button>
             )}
+            {/* New Live Interview Button */}
+            {((activeHist && activeHist.has_cv) || (cvFile && messages.length > 1)) && !isInterviewMode && !isLiveInterviewMode && (
+              <button className="cv-drop has" style={{ padding: "6px 12px", fontSize: "0.7rem", borderRadius: "99px", background: "#ef4444", borderColor: "#ef4444" }} onClick={() => setIsLiveInterviewMode(true)}>
+                🎥 Start Live Interview
+              </button>
+            )}
           </div>
-
           <div className="cv-zone">
-            <div className={`cv-drop ${drag ? "drag" : ""} ${cvFile ? "has" : ""}`} onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={e => { e.preventDefault(); setDrag(false); handleCvFile(e.dataTransfer.files[0]); }}>
+            <div className={`cv-drop ${drag ? "drag" : ""} ${cvFile ? "has" : ""}`}
+              onDragOver={e => { e.preventDefault(); setDrag(true); }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={e => { e.preventDefault(); setDrag(false); handleCvFile(e.dataTransfer.files[0]); }}>
               <input type="file" accept="application/pdf" onChange={e => handleCvFile(e.target.files[0])} />
               <span>{cvFile ? "📄" : "🎯"}</span>
               <span>{cvFile ? cvFile.name.slice(0, 24) + (cvFile.name.length > 24 ? "…" : "") : "Upload CV (PDF)"}</span>
@@ -213,10 +244,13 @@ export default function App() {
 
         {errMsg && <div className="err-bar"><span>⚠</span><div><strong>Request failed</strong> — {errMsg}</div></div>}
 
-        {/* CONTENT AREA */}
-        {isInterviewMode && activeHist ? (
-          <InterviewScreen session={activeHist} auth={auth} onBack={() => setIsInterviewMode(false)} />
-        ) : (
+        {isJobsMode ? (
+          <JobsScreen auth={auth} cvFile={cvFile} pdfToBase64={pdfToBase64} API_BASE={API_BASE} onBack={() => setIsJobsMode(false)} />
+            ) : isLiveInterviewMode && activeHist ? (
+            <LiveInterviewScreen session={activeHist} auth={auth} onBack={() => setIsLiveInterviewMode(false)} />
+            ) : isInterviewMode && activeHist ? (
+            <InterviewScreen session={activeHist} auth={auth} onBack={() => setIsInterviewMode(false)} />
+            ) : (
           <>
             <div className="chat-body">
               {activeHist && messages.length === 0 ? (
@@ -242,7 +276,6 @@ export default function App() {
                   ))}
                 </div>
               ) : messages.length === 0 ? (
-                /* MODERN EMPTY STATE */
                 <div className="empty" style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
                   <div style={{ padding: "16px", background: "#eef2ff", borderRadius: "20px", color: "var(--primary)", marginBottom: "16px" }}>
                     <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -253,21 +286,22 @@ export default function App() {
                   <p style={{ color: "var(--text-muted)", fontSize: "1rem", textAlign: "center", maxWidth: "500px" }}>
                     Upload your CV and paste a job description to get a comprehensive gap analysis and start your personalized mock interview.
                   </p>
-
                   <div className="dash-grid">
                     <button className="dash-card" onClick={() => setInput("Paste a job description here...")}>
-                      <span className="dash-icon">📄</span><span className="dash-title">Analyze Job Description</span><span className="dash-desc">Extract key skills and requirements from any job posting automatically.</span>
+                      <span className="dash-icon">📄</span><span className="dash-title">Analyze Job Description</span>
+                      <span className="dash-desc">Extract key skills and requirements from any job posting automatically.</span>
                     </button>
                     <button className="dash-card" onClick={() => document.querySelector('input[type="file"]').click()}>
-                      <span className="dash-icon">🎯</span><span className="dash-title">Upload CV for Gap Analysis</span><span className="dash-desc">Match your resume against a job role to find missing skills and improvements.</span>
+                      <span className="dash-icon">🎯</span><span className="dash-title">Upload CV for Gap Analysis</span>
+                      <span className="dash-desc">Match your resume against a job role to find missing skills and improvements.</span>
                     </button>
                     <button className="dash-card" onClick={() => setInput("Can you suggest some projects to improve my React skills?")}>
-                      <span className="dash-icon">🎙️</span><span className="dash-title">AI Mock Interview</span><span className="dash-desc">Practice with dynamically generated questions based on your specific CV gaps.</span>
+                      <span className="dash-icon">🎙️</span><span className="dash-title">AI Mock Interview</span>
+                      <span className="dash-desc">Practice with dynamically generated questions based on your specific CV gaps.</span>
                     </button>
                   </div>
                 </div>
               ) : (
-                /* MESSAGES */
                 <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
                   {messages.map((m, i) => (
                     <div key={i} className={`msg-row ${m.role}`}>
@@ -288,7 +322,6 @@ export default function App() {
               <div ref={endRef} />
             </div>
 
-            {/* INPUT */}
             <div className="input-bar">
               <div className="input-row">
                 <textarea

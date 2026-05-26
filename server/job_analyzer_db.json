@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "id": "a8a3b6da-fb6f-483f-8ceb-1c12c4f87769",
+      "username": "ali@email.com",
+      "full_name": "ali",
+      "password": "$argon2id$v=19$m=65536,t=3,p=4$Rd50LMviALuPlRGxKGVhSQ$D1fKR2Q3Hyh+lyL3RR9+PXn+xrbBh6uSb3DgHPHKfcA",
+      "created": "2026-05-19T15:55:20.353Z"
+    },
+    {
+      "id": "4dc40848-faa0-4357-8547-a998971d5075",
+      "username": "ahmad@email.com",
+      "full_name": "ahmad",
+      "password": "$argon2id$v=19$m=65536,t=3,p=4$oLnvNw24EAEWRejIsX0tUg$fJO9fB6JSk9bAwNqIKRgm8Jwir7HV+rd70ipEnGAgzM",
+      "created": "2026-05-19T15:56:15.575Z"
+    }
+  ]
+}

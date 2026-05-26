@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 // Update this if ngrok changes
-const API_BASE = "https://unshaven-crafty-dedicate.ngrok-free.dev";
+const API_BASE = "https://arbitrary-negotiate-monotone.ngrok-free.dev";
 
 export default function AuthScreen({ onAuth }) {
     const [tab, setTab] = useState("login");
@@ -21,13 +21,15 @@ export default function AuthScreen({ onAuth }) {
                 const form = new URLSearchParams({ username, password });
                 res = await fetch(`${API_BASE}/auth/login`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded", "ngrok-skip-browser-warning": "true" },
-                    body: form,
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    body: form,     
                 });
             } else {
                 res = await fetch(`${API_BASE}/auth/register`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+                    headers: { "Content-Type": "application/json"},
                     body: JSON.stringify({ username, password, full_name: fullName }),
                 });
             }
