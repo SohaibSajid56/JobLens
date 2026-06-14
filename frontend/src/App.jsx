@@ -3,16 +3,9 @@ import "./styles.css";
 import AuthScreen from "./AuthScreen";
 import InterviewScreen from "./InterviewScreen";
 import JobsScreen from "./jobscreen";
-import LiveInterviewScreen from "./LiveInterviewScreen"; 
+import LiveInterviewScreen from "./LiveInterviewScreen";
 
-
-const API_BASE = "https://arbitrary-negotiate-monotone.ngrok-free.dev";
-
-const HEADERS = (token) => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`,
-  "ngrok-skip-browser-warning": "true",
-});
+import { API_BASE, HEADERS, AUTH_HEADERS } from "./lib/api";
 
 const pdfToBase64 = (file) =>
   new Promise((res, rej) => {
@@ -61,8 +54,8 @@ export default function App() {
 
   useEffect(() => {
     if (taRef.current) {
-      taRef.current.style.height = "52px";
-      taRef.current.style.height = Math.min(taRef.current.scrollHeight, 200) + "px";
+      taRef.current.style.height = "44px";
+      taRef.current.style.height = Math.min(taRef.current.scrollHeight, 180) + "px";
     }
   }, [input]);
 
@@ -74,10 +67,7 @@ export default function App() {
       if (!token) return;
       const res = await fetch(`${API_BASE}/internal/history`, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
+        headers: AUTH_HEADERS(token),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed to load history");
@@ -138,25 +128,16 @@ export default function App() {
   }
 
   function startNew() {
-    setMessages([]);
-    setInput("");
-    setSessionId(null);
-    setCvFile(null);
-    setErrMsg("");
-    setActiveHist(null);
-    setIsInterviewMode(false);
-    setIsJobsMode(false);
-    setIsLiveInterviewMode(false);
+    setMessages([]); setInput(""); setSessionId(null);
+    setErrMsg(""); setActiveHist(null);
+    setIsInterviewMode(false); setIsJobsMode(false); setIsLiveInterviewMode(false);
   }
 
   async function deleteSession(sid, e) {
     e.stopPropagation();
     await fetch(`${API_BASE}/internal/history/${sid}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        "ngrok-skip-browser-warning": "true",
-      },
+      headers: AUTH_HEADERS(auth.token),
     });
     loadHistory();
     if (sessionId === sid) startNew();
@@ -165,8 +146,7 @@ export default function App() {
   function openHistory(session) {
     setActiveHist(session);
     setMessages([]); setInput(""); setSessionId(session.session_id);
-    setErrMsg(""); setIsInterviewMode(false); setIsJobsMode(false);
-    setIsLiveInterviewMode(false);
+    setErrMsg(""); setIsInterviewMode(false); setIsJobsMode(false); setIsLiveInterviewMode(false);
   }
 
   function logout() {
@@ -174,89 +154,146 @@ export default function App() {
     setAuth(null);
   }
 
-  if (!auth) return <AuthScreen onAuth={setAuth} />;
+  if (!auth) return <AuthScreen onAuth={setAuth} API_BASE={API_BASE} />;
+
+  // FIX: The interview buttons should be available if ANY valid session exists with messages, 
+  // whether it is a loaded history item or a brand new live session.
+  const canInterview = Boolean(sessionId && (messages.length > 1 || (activeHist && activeHist.turns.length > 0)));
 
   return (
     <div className="shell">
+      {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="sidebar-head">
-          <div className="sidebar-logo">Job<em>Lens</em></div>
-          <div className="sidebar-user">Signed in as <strong>{auth.username}</strong></div>
+          <div className="sidebar-logo">Job<em>Lens</em><span className="ai-tag">AI</span></div>
+          <div className="sidebar-user">
+            <span className="user-status" />
+            <strong>{auth.username}</strong>
+          </div>
         </div>
 
-        <button className="new-chat-btn" onClick={startNew}>＋ New Analysis</button>
+        <div className="sidebar-nav">
+          <button className="nav-btn primary" onClick={startNew}>
+            <span className="nav-btn-icon">+</span>
+            New Analysis
+          </button>
+          <button
+            className="nav-btn"
+            onClick={() => { setIsJobsMode(true); setIsInterviewMode(false); setActiveHist(null); }}
+          >
+            <span className="nav-btn-icon">💼</span>
+            Find Jobs
+          </button>
+        </div>
 
-        <button className="new-chat-btn" onClick={() => { setIsJobsMode(true); setIsInterviewMode(false); setActiveHist(null); }} style={{ marginTop: "8px" }}>
-          💼 Find Jobs From CV
-        </button>
-
-        <div className="history-label">Recent Sessions</div>
-        <div className="history-list">
-          {history.length === 0 && <div style={{ fontSize: "0.75rem", color: "#64748b", padding: "8px 12px" }}>No sessions yet</div>}
-          {history.map(s => (
-            <div key={s.session_id} className={`hist-card ${activeHist?.session_id === s.session_id || sessionId === s.session_id ? "active" : ""}`} onClick={() => openHistory(s)}>
-              <div className="hist-card-title">{s.turns[0]?.user?.slice(0, 58) || "Session"}</div>
-              <div className="hist-card-meta">
-                <span>{fmtDate(s.started)}</span>
-                {s.match_pct !== null && s.match_pct !== undefined && (
-                  <span className={`match-badge ${matchClass(s.match_pct)}`}>{s.match_pct}% match</span>
-                )}
-                {s.has_cv && <span>📄</span>}
+        <div className="history-section">
+          <div className="history-label">Recent</div>
+          <div className="history-list">
+            {history.length === 0 && (
+              <div style={{ fontSize: "0.75rem", color: "var(--ink-300)", padding: "6px 10px" }}>
+                No sessions yet
               </div>
-              <button className="hist-del" onClick={(e) => deleteSession(s.session_id, e)} title="Delete">✕</button>
-            </div>
-          ))}
+            )}
+            {history.map(s => (
+              <div
+                key={s.session_id}
+                className={`hist-card ${activeHist?.session_id === s.session_id || sessionId === s.session_id ? "active" : ""}`}
+                onClick={() => openHistory(s)}
+              >
+                <div className="hist-card-title">{s.turns[0]?.user?.slice(0, 55) || "Session"}</div>
+                <div className="hist-card-meta">
+                  <span>{fmtDate(s.started)}</span>
+                  {s.match_pct !== null && s.match_pct !== undefined && (
+                    <span className={`match-badge ${matchClass(s.match_pct)}`}>{s.match_pct}%</span>
+                  )}
+                  {s.has_cv && <span>📄</span>}
+                </div>
+                <button className="hist-del" onClick={(e) => deleteSession(s.session_id, e)} title="Delete">✕</button>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="sidebar-foot">
-          <button className="logout-btn" onClick={logout}>↩ Sign out</button>
+          <button className="logout-btn" onClick={logout}>
+            <span>↩</span> Sign out
+          </button>
         </div>
       </aside>
 
+      {/* MAIN */}
       <main className="main">
+        {/* TOPBAR */}
         <div className="topbar">
           <div className="topbar-title">
-            {activeHist ? `Session — ${fmtDate(activeHist.started)}` : "New Analysis"}
-            {((activeHist && activeHist.has_cv) || (cvFile && messages.length > 1)) && !isInterviewMode && (
-              <button className="cv-drop has" style={{ padding: "6px 12px", fontSize: "0.7rem", borderRadius: "99px" }} onClick={() => setIsInterviewMode(true)}>
-                🎙️ Start Mock Interview
-              </button>
-            )}
-            {/* New Live Interview Button */}
-            {((activeHist && activeHist.has_cv) || (cvFile && messages.length > 1)) && !isInterviewMode && !isLiveInterviewMode && (
-              <button className="cv-drop has" style={{ padding: "6px 12px", fontSize: "0.7rem", borderRadius: "99px", background: "#ef4444", borderColor: "#ef4444" }} onClick={() => setIsLiveInterviewMode(true)}>
-                🎥 Start Live Interview
-              </button>
+            <span style={{ color: "var(--ink-300)" }}>JobLens</span>
+            <span className="topbar-sep">/</span>
+            <span style={{ color: "var(--ink-700)", fontWeight: 600 }}>
+              {activeHist ? fmtDate(activeHist.started) : "New Analysis"}
+            </span>
+
+            {/* FIX: Move interview action buttons right here, conditionally rendered */}
+            {canInterview && !isInterviewMode && !isLiveInterviewMode && (
+              <div className="interview-actions" style={{ marginLeft: '24px' }}>
+                <button className="btn-mock-text" onClick={() => setIsInterviewMode(true)}>
+                  📝 Text Mock
+                </button>
+                <button className="btn-mock-live" onClick={() => setIsLiveInterviewMode(true)}>
+                  🎙️ Live Voice Mock
+                </button>
+              </div>
             )}
           </div>
+
           <div className="cv-zone">
-            <div className={`cv-drop ${drag ? "drag" : ""} ${cvFile ? "has" : ""}`}
+            <div
+              className={`cv-drop ${drag ? "drag" : ""} ${cvFile ? "has" : ""}`}
               onDragOver={e => { e.preventDefault(); setDrag(true); }}
               onDragLeave={() => setDrag(false)}
-              onDrop={e => { e.preventDefault(); setDrag(false); handleCvFile(e.dataTransfer.files[0]); }}>
+              onDrop={e => { e.preventDefault(); setDrag(false); handleCvFile(e.dataTransfer.files[0]); }}
+            >
               <input type="file" accept="application/pdf" onChange={e => handleCvFile(e.target.files[0])} />
-              <span>{cvFile ? "📄" : "🎯"}</span>
-              <span>{cvFile ? cvFile.name.slice(0, 24) + (cvFile.name.length > 24 ? "…" : "") : "Upload CV (PDF)"}</span>
+              <span>{cvFile ? "📄" : "↑"}</span>
+              <span>{cvFile ? cvFile.name.slice(0, 20) + (cvFile.name.length > 20 ? "…" : "") : "Upload CV"}</span>
             </div>
-            {cvFile && <button className="cv-rm" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }} onClick={() => setCvFile(null)} title="Remove CV">✕</button>}
+            {cvFile && (
+              <button className="cv-rm" onClick={() => setCvFile(null)} title="Remove">✕</button>
+            )}
           </div>
         </div>
 
-        {errMsg && <div className="err-bar"><span>⚠</span><div><strong>Request failed</strong> — {errMsg}</div></div>}
+        {errMsg && (
+          <div className="err-bar">
+            <span>⚠</span>
+            <div><strong>Request failed</strong> — {errMsg}</div>
+          </div>
+        )}
 
+        {/* SCREEN ROUTER */}
         {isJobsMode ? (
           <JobsScreen auth={auth} cvFile={cvFile} pdfToBase64={pdfToBase64} API_BASE={API_BASE} onBack={() => setIsJobsMode(false)} />
-            ) : isLiveInterviewMode && activeHist ? (
-            <LiveInterviewScreen session={activeHist} auth={auth} onBack={() => setIsLiveInterviewMode(false)} />
-            ) : isInterviewMode && activeHist ? (
-            <InterviewScreen session={activeHist} auth={auth} onBack={() => setIsInterviewMode(false)} />
-            ) : (
+        ) : isLiveInterviewMode ? (
+          <LiveInterviewScreen
+          session={activeHist || { session_id: sessionId }}
+          auth={auth}
+          API_BASE={API_BASE}
+          onBack={() => setIsLiveInterviewMode(false)}
+        />
+        ) : isInterviewMode ? (
+          <InterviewScreen
+          session={activeHist || { session_id: sessionId }}
+          auth={auth}
+          API_BASE={API_BASE}
+          onBack={() => setIsInterviewMode(false)}
+        />
+        ) : (
           <>
             <div className="chat-body">
+              {/* History read-back */}
               {activeHist && messages.length === 0 ? (
-                <div className="hist-turns" style={{ maxWidth: "1000px", margin: "0 auto" }}>
+                <div className="hist-turns">
                   {activeHist.turns.map((t, i) => (
-                    <div key={i} style={{ marginBottom: "24px" }}>
+                    <div key={i} style={{ marginBottom: "14px" }}>
                       <div className="msg-row user">
                         <div className="bubble">
                           <div className="bubble-label">{auth.username}</div>
@@ -267,74 +304,124 @@ export default function App() {
                         <div className="bubble">
                           <div className="bubble-label">JobLens AI</div>
                           {t.ai}
+                          
+                          {/* PREMIUM WIDGET FOR HISTORY READBACK */}
                           {t.match_pct !== null && t.match_pct !== undefined && (
-                            <div><span className={`match-pill ${matchClass(t.match_pct)}`}>{t.match_pct}% CV match</span></div>
+                            <div className={`premium-match-box ${t.match_pct >= 70 ? 'high' : t.match_pct >= 40 ? 'med' : 'low'}`}>
+                              <div className="match-score-circle">
+                                <svg viewBox="0 0 36 36">
+                                  <path className="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                  <path className="circle-fill" strokeDasharray={`${t.match_pct}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <div className="match-score-text">{t.match_pct}%</div>
+                              </div>
+                              <div className="match-info">
+                                <span className="match-title">CV Match Score</span>
+                                <span className="match-subtitle">Analyzed against Job Description</span>
+                              </div>
+                            </div>
                           )}
+
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : messages.length === 0 ? (
-                <div className="empty" style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-                  <div style={{ padding: "16px", background: "#eef2ff", borderRadius: "20px", color: "var(--primary)", marginBottom: "16px" }}>
-                    <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <h2 style={{ fontSize: "1.8rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "8px" }}>Welcome to JobLens AI</h2>
-                  <p style={{ color: "var(--text-muted)", fontSize: "1rem", textAlign: "center", maxWidth: "500px" }}>
-                    Upload your CV and paste a job description to get a comprehensive gap analysis and start your personalized mock interview.
+                /* Welcome */
+                <div className="empty-state">
+                  <div className="empty-wordmark">Job<span>Lens</span></div>
+                  <p className="empty-sub">
+                    Paste a job description and upload your CV to get a detailed gap analysis,
+                    improvement suggestions, and interview practice.
                   </p>
                   <div className="dash-grid">
                     <button className="dash-card" onClick={() => setInput("Paste a job description here...")}>
-                      <span className="dash-icon">📄</span><span className="dash-title">Analyze Job Description</span>
-                      <span className="dash-desc">Extract key skills and requirements from any job posting automatically.</span>
+                      <span className="dash-icon">📋</span>
+                      <span className="dash-title">Analyze a Job</span>
+                      <span className="dash-desc">Extract skills and requirements from any posting.</span>
                     </button>
                     <button className="dash-card" onClick={() => document.querySelector('input[type="file"]').click()}>
-                      <span className="dash-icon">🎯</span><span className="dash-title">Upload CV for Gap Analysis</span>
-                      <span className="dash-desc">Match your resume against a job role to find missing skills and improvements.</span>
+                      <span className="dash-icon">📎</span>
+                      <span className="dash-title">CV Gap Analysis</span>
+                      <span className="dash-desc">Match your resume against a role to find gaps.</span>
                     </button>
-                    <button className="dash-card" onClick={() => setInput("Can you suggest some projects to improve my React skills?")}>
-                      <span className="dash-icon">🎙️</span><span className="dash-title">AI Mock Interview</span>
-                      <span className="dash-desc">Practice with dynamically generated questions based on your specific CV gaps.</span>
+                    <button className="dash-card" onClick={() => setInput("Can you suggest projects to improve my skills?")}>
+                      <span className="dash-icon">🎙</span>
+                      <span className="dash-title">Mock Interview</span>
+                      <span className="dash-desc">Practice with questions generated from your CV.</span>
                     </button>
                   </div>
                 </div>
               ) : (
-                <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+                /* Active chat */
+                <div style={{ maxWidth: "900px", margin: "0 auto" }}>
                   {messages.map((m, i) => (
                     <div key={i} className={`msg-row ${m.role}`}>
                       <div className="bubble">
-                        <div className="bubble-label">{m.role === "user" ? auth.full_name || auth.username : "JobLens AI"}</div>
+                        <div className="bubble-label">
+                          {m.role === "user" ? auth.full_name || auth.username : "JobLens AI"}
+                        </div>
                         {m.content}
+
+                        {/* PREMIUM WIDGET FOR ACTIVE CHAT */}
                         {m.match_pct !== null && m.match_pct !== undefined && (
-                          <div><span className={`match-pill ${matchClass(m.match_pct)}`}>{m.match_pct}% CV match</span></div>
+                          <div className={`premium-match-box ${m.match_pct >= 70 ? 'high' : m.match_pct >= 40 ? 'med' : 'low'}`}>
+                            <div className="match-score-circle">
+                              <svg viewBox="0 0 36 36">
+                                <path className="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path className="circle-fill" strokeDasharray={`${m.match_pct}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                              </svg>
+                              <div className="match-score-text">{m.match_pct}%</div>
+                            </div>
+                            <div className="match-info">
+                              <span className="match-title">CV Match Score</span>
+                              <span className="match-subtitle">Analyzed against Job Description</span>
+                            </div>
+                          </div>
                         )}
+
                       </div>
                     </div>
                   ))}
                   {loading && (
-                    <div className="msg-row assistant"><div className="bubble" style={{ padding: "16px 24px" }}>...</div></div>
+                    <div className="msg-row assistant">
+                      <div className="bubble">
+                        <div className="bubble-label">JobLens AI</div>
+                        <div className="typing-dots">
+                          <div className="typing-dot" /><div className="typing-dot" /><div className="typing-dot" />
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
               <div ref={endRef} />
             </div>
 
+            {/* INPUT */}
             <div className="input-bar">
               <div className="input-row">
                 <textarea
-                  ref={taRef} className="chat-input" value={input} onChange={e => setInput(e.target.value)}
+                  ref={taRef}
+                  className="chat-input"
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder={activeHist && messages.length === 0 ? "Continue this session or start a new one…" : "Paste a job description or follow-up message…"}
+                  placeholder={
+                    activeHist && messages.length === 0
+                      ? "Continue this session…"
+                      : "Paste a job description or ask a follow-up…"
+                  }
                   disabled={loading}
                 />
-                <button className="send" onClick={handleSend} disabled={loading || !input.trim()}>{loading ? "…" : "Send ↑"}</button>
+                <button className="send" onClick={handleSend} disabled={loading || !input.trim()}>
+                  {loading ? "…" : "Send"}
+                </button>
               </div>
               <div className="hint">
-                <span>⏎ Send · Shift+⏎ New line</span>
-                {cvFile && <span style={{ color: "var(--primary)", fontWeight: 500 }}>📄 CV attached — gap analysis enabled</span>}
+                <span>Enter to send · Shift+Enter for new line</span>
+                {cvFile && <span className="cv-hint">📄 CV attached — gap analysis on</span>}
               </div>
             </div>
           </>

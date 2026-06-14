@@ -1,17 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { HEADERS } from "./lib/api";
 
-const API_BASE = "https://arbitrary-negotiate-monotone.ngrok-free.dev";
-
-const HEADERS = (token) => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`,
-  "ngrok-skip-browser-warning": "true",
-});
 
 function ScoreRing({ score }) {
   const r = 28, cx = 36, cy = 36;
   const circ = 2 * Math.PI * r;
-  const dash = (score / 10) * circ;
+  const dash = ((score || 0) / 10) * circ;
   const color = score >= 8 ? "#10b981" : score >= 6 ? "#f59e0b" : score >= 4 ? "#f97316" : "#ef4444";
   return (
     <svg width="72" height="72" viewBox="0 0 72 72">
@@ -21,7 +15,7 @@ function ScoreRing({ score }) {
         transform="rotate(-90 36 36)" style={{ transition: "stroke-dasharray 0.8s ease" }} />
       <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle"
         style={{ fontSize: "14px", fontWeight: 700, fill: color, fontFamily: "inherit" }}>
-        {score}/10
+        {score || 0}/10
       </text>
     </svg>
   );
@@ -40,11 +34,20 @@ function Badge({ label, type }) {
       display: "inline-flex", alignItems: "center", padding: "3px 10px",
       borderRadius: 99, fontSize: "0.72rem", fontWeight: 600,
       background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      marginRight: "4px", marginBottom: "4px"
     }}>{label}</span>
   );
 }
 
-export default function InterviewScreen({ session, auth, onBack }) {
+// ── THE ARRAY GUARD ──
+// This completely prevents .map() crashes if the AI hallucinates a string or null response
+const ensureArray = (data) => {
+  if (Array.isArray(data)) return data;
+  if (typeof data === "string") return data.split(",").map(item => item.trim());
+  return [];
+};
+
+export default function InterviewScreen({ session, auth, API_BASE, onBack }) {
   const [phase, setPhase] = useState("loading");
   const [questions, setQuestions] = useState([]);
   const [current, setCurrent] = useState(0);
@@ -98,7 +101,7 @@ export default function InterviewScreen({ session, auth, onBack }) {
           session_id: session.session_id,
           question: q.question,
           question_type: q.type,
-          expected_skills: q.expected_skills || [],
+          expected_skills: ensureArray(q.expected_skills),
           user_answer: answer.trim(),
         }),
       });
@@ -163,17 +166,17 @@ export default function InterviewScreen({ session, auth, onBack }) {
           <div key={i} style={styles.resultCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
               <div>
-                <span style={styles.qLabel}>Q{i + 1} · {r.question.type}</span>
-                <p style={{ fontWeight: 600, color: "#1e293b", marginTop: 4 }}>{r.question.question}</p>
+                <span style={styles.qLabel}>Q{i + 1} · {r.question?.type || "General"}</span>
+                <p style={{ fontWeight: 600, color: "#1e293b", marginTop: 4 }}>{r.question?.question}</p>
               </div>
-              <ScoreRing score={r.evaluation.score} />
+              <ScoreRing score={r.evaluation?.score || 0} />
             </div>
             <div style={styles.answerBox}>{r.answer}</div>
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {r.evaluation.strengths?.map((s, j) => <Badge key={j} label={`✓ ${s}`} type="good" />)}
-              {r.evaluation.weaknesses?.map((w, j) => <Badge key={j} label={`△ ${w}`} type="warn" />)}
+              {ensureArray(r.evaluation?.strengths).map((s, j) => <Badge key={`str-${j}`} label={`✓ ${s}`} type="good" />)}
+              {ensureArray(r.evaluation?.weaknesses).map((w, j) => <Badge key={`wk-${j}`} label={`△ ${w}`} type="warn" />)}
             </div>
-            {r.evaluation.ideal_answer_direction && (
+            {r.evaluation?.ideal_answer_direction && (
               <div style={styles.idealBox}>
                 <span style={{ fontWeight: 600, color: "#4f46e5" }}>💡 Ideal answer direction: </span>
                 {r.evaluation.ideal_answer_direction}
@@ -196,8 +199,8 @@ export default function InterviewScreen({ session, auth, onBack }) {
 
         <div style={{ height: 4, background: "#e2e8f0", borderRadius: 99, marginBottom: 28 }}>
           <div style={{
-            height: "100%", borderRadius: 99, background: "var(--primary, #4f46e5)",
-            width: `${((phase === "result" ? current + 1 : current) / questions.length) * 100}%`,
+            height: "100%", borderRadius: 99, background: "var(--ink-900)",
+            width: `${((phase === "result" ? current + 1 : current) / (questions.length || 1)) * 100}%`,
             transition: "width 0.4s ease",
           }} />
         </div>
@@ -205,9 +208,9 @@ export default function InterviewScreen({ session, auth, onBack }) {
         <div style={styles.questionCard}>
           <div style={styles.interviewerLabel}>INTERVIEWER</div>
           <p style={styles.questionText}>{q?.question}</p>
-          {q?.expected_skills?.length > 0 && (
+          {ensureArray(q?.expected_skills).length > 0 && (
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {q.expected_skills.map((s, i) => <span key={i} style={styles.skillTag}>{s}</span>)}
+              {ensureArray(q?.expected_skills).map((s, i) => <span key={i} style={styles.skillTag}>{s}</span>)}
             </div>
           )}
         </div>
@@ -242,25 +245,25 @@ export default function InterviewScreen({ session, auth, onBack }) {
         {phase === "result" && evaluation && (
           <div style={{ animation: "fadeUp 0.3s ease" }}>
             <div style={styles.evalHeader}>
-              <ScoreRing score={evaluation.score} />
+              <ScoreRing score={evaluation?.score || 0} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                  FEEDBACK (SCORE: {evaluation.score}/10)
+                  FEEDBACK (SCORE: {evaluation?.score || 0}/10)
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {evaluation.strengths?.map((s, i) => <Badge key={i} label={`✓ ${s}`} type="good" />)}
-                  {evaluation.weaknesses?.map((w, i) => <Badge key={i} label={`△ ${w}`} type="warn" />)}
-                  {evaluation.missing_keywords?.map((k, i) => <Badge key={i} label={`✗ ${k}`} type="bad" />)}
+                  {ensureArray(evaluation?.strengths).map((s, i) => <Badge key={`ev-str-${i}`} label={`✓ ${s}`} type="good" />)}
+                  {ensureArray(evaluation?.weaknesses).map((w, i) => <Badge key={`ev-wk-${i}`} label={`△ ${w}`} type="warn" />)}
+                  {ensureArray(evaluation?.missing_keywords).map((k, i) => <Badge key={`ev-ms-${i}`} label={`✗ ${k}`} type="bad" />)}
                 </div>
               </div>
             </div>
-            {evaluation.detailed_feedback && (
+            {evaluation?.detailed_feedback && (
               <div style={styles.feedbackBox}>
                 <div style={{ fontWeight: 600, marginBottom: 6, color: "#1e293b" }}>📝 Detailed Feedback</div>
                 <p style={{ color: "#475569", fontSize: "0.85rem", lineHeight: 1.65 }}>{evaluation.detailed_feedback}</p>
               </div>
             )}
-            {evaluation.ideal_answer_direction && (
+            {evaluation?.ideal_answer_direction && (
               <div style={styles.idealBox}>
                 <span style={{ fontWeight: 600, color: "#4f46e5" }}>💡 Ideal Answer Direction: </span>
                 {evaluation.ideal_answer_direction}
@@ -285,23 +288,164 @@ export default function InterviewScreen({ session, auth, onBack }) {
 }
 
 const styles = {
-  centeredFill: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 },
+  centeredFill: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 300
+  },
   spinnerWrap: { textAlign: "center" },
-  spinner: { width: 40, height: 40, borderRadius: "50%", border: "3px solid #e2e8f0", borderTopColor: "#4f46e5", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" },
-  loadingText: { color: "#475569", fontWeight: 500 },
-  primaryBtn: { padding: "11px 28px", background: "#4f46e5", color: "white", border: "none", borderRadius: 10, fontSize: "0.9rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" },
-  ghostBtn: { padding: "8px 16px", background: "transparent", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.82rem", fontWeight: 500, cursor: "pointer", transition: "all 0.2s" },
-  progressPill: { padding: "6px 14px", background: "#eef2ff", color: "#4f46e5", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600 },
-  questionCard: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "22px 24px", marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" },
-  interviewerLabel: { fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", color: "#0ea5e9", textTransform: "uppercase", marginBottom: 10 },
-  questionText: { fontSize: "1.05rem", lineHeight: 1.6, color: "#1e293b", fontWeight: 500 },
-  skillTag: { padding: "3px 10px", background: "#f1f5f9", color: "#475569", borderRadius: 99, fontSize: "0.7rem", border: "1px solid #e2e8f0" },
-  answerTextarea: { width: "100%", minHeight: 80, maxHeight: 260, padding: "14px 16px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: "0.9rem", lineHeight: 1.6, color: "#1e293b", background: "#fff", resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box", transition: "border-color 0.2s" },
-  evalHeader: { display: "flex", alignItems: "flex-start", gap: 16, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "18px 20px", marginBottom: 14 },
-  feedbackBox: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 18px", marginBottom: 12 },
-  idealBox: { background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 10, padding: "12px 16px", fontSize: "0.85rem", color: "#374151", lineHeight: 1.6, marginBottom: 12 },
-  answerBox: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 16px", fontSize: "0.85rem", color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap", marginTop: 8 },
-  resultCard: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 22px", marginBottom: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" },
-  qLabel: { fontSize: "0.7rem", fontWeight: 600, color: "#0ea5e9", textTransform: "uppercase", letterSpacing: "0.08em" },
-  errBar: { background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 8, padding: "10px 14px", color: "#dc2626", fontSize: "0.82rem" },
+  spinner: {
+    width: 40,
+    height: 40,
+    borderRadius: "50%",
+    border: "3px solid var(--ink-100)",
+    borderTopColor: "var(--ink-900)",
+    animation: "spin 0.8s linear infinite",
+    margin: "0 auto 16px"
+  },
+  loadingText: {
+    color: "var(--ink-500)",
+    fontWeight: 500
+  },
+  primaryBtn: {
+    padding: "11px 28px",
+    background: "var(--ink-900)",
+    color: "white",
+    border: "none",
+    borderRadius: 10,
+    fontSize: "0.9rem",
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  ghostBtn: {
+    padding: "8px 16px",
+    background: "var(--surface)",
+    color: "var(--ink-500)",
+    border: "1px solid var(--ink-100)",
+    borderRadius: 8,
+    fontSize: "0.82rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  progressPill: {
+    padding: "6px 14px",
+    background: "var(--canvas)",
+    color: "var(--ink-700)",
+    border: "1px solid var(--ink-100)",
+    borderRadius: 99,
+    fontSize: "0.78rem",
+    fontWeight: 700
+  },
+  questionCard: {
+    background: "var(--surface)",
+    border: "1px solid var(--ink-100)",
+    borderRadius: 14,
+    padding: "22px 24px",
+    marginBottom: 20,
+    boxShadow: "var(--shadow-xs)"
+  },
+  interviewerLabel: {
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    letterSpacing: "0.1em",
+    color: "var(--accent-text)",
+    textTransform: "uppercase",
+    marginBottom: 10
+  },
+  questionText: {
+    fontSize: "1.05rem",
+    lineHeight: 1.6,
+    color: "var(--ink-900)",
+    fontWeight: 500
+  },
+  skillTag: {
+    padding: "3px 10px",
+    background: "var(--canvas)",
+    color: "var(--ink-500)",
+    borderRadius: 99,
+    fontSize: "0.7rem",
+    border: "1px solid var(--ink-100)"
+  },
+  answerTextarea: {
+    width: "100%",
+    minHeight: 80,
+    maxHeight: 260,
+    padding: "14px 16px",
+    border: "1.5px solid var(--ink-100)",
+    borderRadius: 10,
+    fontSize: "0.9rem",
+    lineHeight: 1.6,
+    color: "var(--ink-900)",
+    background: "var(--surface)",
+    resize: "none",
+    outline: "none",
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+    transition: "border-color 0.2s"
+  },
+  evalHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 16,
+    background: "var(--surface)",
+    border: "1px solid var(--ink-100)",
+    borderRadius: 12,
+    padding: "18px 20px",
+    marginBottom: 14
+  },
+  feedbackBox: {
+    background: "var(--surface-2)",
+    border: "1px solid var(--ink-100)",
+    borderRadius: 10,
+    padding: "14px 18px",
+    marginBottom: 12
+  },
+  idealBox: {
+    background: "var(--accent-dim)",
+    border: "1px solid #c0d9fb",
+    borderRadius: 10,
+    padding: "12px 16px",
+    fontSize: "0.85rem",
+    color: "var(--ink-700)",
+    lineHeight: 1.6,
+    marginBottom: 12
+  },
+  answerBox: {
+    background: "var(--surface-2)",
+    border: "1px solid var(--ink-100)",
+    borderRadius: 8,
+    padding: "12px 16px",
+    fontSize: "0.85rem",
+    color: "var(--ink-500)",
+    lineHeight: 1.6,
+    whiteSpace: "pre-wrap",
+    marginTop: 8
+  },
+  resultCard: {
+    background: "var(--surface)",
+    border: "1px solid var(--ink-100)",
+    borderRadius: 12,
+    padding: "20px 22px",
+    marginBottom: 16,
+    boxShadow: "var(--shadow-xs)"
+  },
+  qLabel: {
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    color: "var(--accent-text)",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em"
+  },
+  errBar: {
+    background: "var(--danger-dim)",
+    border: "1px solid #f5c2c2",
+    borderRadius: 8,
+    padding: "10px 14px",
+    color: "var(--danger)",
+    fontSize: "0.82rem"
+  }
 };

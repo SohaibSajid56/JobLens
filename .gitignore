@@ -1,5 +1,50 @@
-﻿BE.ipynb
-*.ipynb
+﻿# Environment / secrets
 .env
-*.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+frontend/.env.local
+
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+backend/__pycache__/
+backend/app/**/__pycache__/
+backend/venv/
+backend/.venv/
+backend/env/
+backend/.env/
+
+# Local DB / temp files
+job_analyzer_db.json
+backend/job_analyzer_db.json
+*.sqlite
+*.db
+
+# Node / React
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Allow safe example env files
+!backend/.env.example
+!frontend/.env.example

@@ -1,10 +1,8 @@
 // src/AuthScreen.jsx
 import { useState } from "react";
 
-// Update this if ngrok changes
-const API_BASE = "https://arbitrary-negotiate-monotone.ngrok-free.dev";
 
-export default function AuthScreen({ onAuth }) {
+export default function AuthScreen({ onAuth, API_BASE }) {
     const [tab, setTab] = useState("login");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -21,15 +19,13 @@ export default function AuthScreen({ onAuth }) {
                 const form = new URLSearchParams({ username, password });
                 res = await fetch(`${API_BASE}/auth/login`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/x-www-form-urlencoded",
-                    },
-                    body: form,     
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: form,
                 });
             } else {
                 res = await fetch(`${API_BASE}/auth/register`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json"},
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ username, password, full_name: fullName }),
                 });
             }
@@ -47,13 +43,54 @@ export default function AuthScreen({ onAuth }) {
 
     return (
         <div className="auth-screen">
-            <div className="auth-card">
-                <div className="auth-logo">Job<em>Lens</em></div>
-                <div className="auth-sub">AI-powered job description analyser & CV gap analysis</div>
+            {/* Left brand panel */}
+            <div className="auth-left">
+                <div className="auth-left-logo">
+                    Job<em>Lens</em>
+                    <span className="ai-tag">AI</span>
+                </div>
+
+                <div className="auth-left-body">
+                    <h1 className="auth-left-headline">
+                        Land the role<br />you actually <em>deserve.</em>
+                    </h1>
+                    <p>
+                        Upload your CV, paste a job description, and get
+                        a precise gap analysis — then practice with a live AI interviewer.
+                    </p>
+                    <ul className="auth-feature-list">
+                        <li>Instant CV–JD match scoring</li>
+                        <li>Skill gap detection with guidance</li>
+                        <li>Live AI mock interview with speech</li>
+                        <li>Per-answer scoring and ideal responses</li>
+                    </ul>
+                </div>
+
+                <div className="auth-left-footer">
+                    © {new Date().getFullYear()} JobLens. All rights reserved.
+                </div>
+            </div>
+
+            {/* Right form panel */}
+            <div className="auth-right">
+                <div className="auth-right-head">
+                    <h2 className="auth-right-title">
+                        {tab === "login" ? "Welcome back" : "Create your account"}
+                    </h2>
+                    <p className="auth-right-sub">
+                        {tab === "login"
+                            ? "Sign in to continue your analysis sessions."
+                            : "Free to start — no credit card required."}
+                    </p>
+                </div>
 
                 <div className="auth-tab-row">
                     {["login", "register"].map(t => (
-                        <button key={t} className={`auth-tab ${tab === t ? "active" : ""}`} onClick={() => { setTab(t); setErr(""); }}>
+                        <button
+                            key={t}
+                            className={`auth-tab ${tab === t ? "active" : ""}`}
+                            onClick={() => { setTab(t); setErr(""); }}
+                        >
                             {t === "login" ? "Sign In" : "Create Account"}
                         </button>
                     ))}
@@ -63,19 +100,34 @@ export default function AuthScreen({ onAuth }) {
                     {tab === "register" && (
                         <div className="field">
                             <label>Full Name</label>
-                            <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Ada Lovelace" />
+                            <input
+                                value={fullName}
+                                onChange={e => setFullName(e.target.value)}
+                                placeholder="Ada Lovelace"
+                            />
                         </div>
                     )}
                     <div className="field">
                         <label>Username</label>
-                        <input value={username} onChange={e => setUsername(e.target.value)} placeholder="your_handle" required autoFocus />
+                        <input
+                            value={username}
+                            onChange={e => setUsername(e.target.value)}
+                            placeholder="your_handle"
+                            required autoFocus
+                        />
                     </div>
                     <div className="field">
                         <label>Password</label>
-                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                        />
                     </div>
                     <button className="auth-submit" type="submit" disabled={loading}>
-                        {loading ? "Please wait…" : tab === "login" ? "Sign In →" : "Create Account →"}
+                        {loading ? "Please wait…" : tab === "login" ? "Sign in →" : "Create account →"}
                     </button>
                     {err && <div className="auth-err">⚠ {err}</div>}
                 </form>
