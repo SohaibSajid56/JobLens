@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+requests
+python-dotenv
+pydantic
+pydantic-settings
+SQLAlchemy
+psycopg2-binary
+argon2-cffi
+python-jose[cryptography]
+pdfplumber
+numpy
